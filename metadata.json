@@ -1,0 +1,12 @@
+{
+  "name": "Nexus Operations",
+  "description": "A high-performance project and task management suite for enterprises with real-time collaboration, financial tracking, and RBAC.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "Task Management",
+    "Client Management",
+    "Financial Tracking",
+    "Real-time Collaboration",
+    "Project Timelines"
+  ]
+}

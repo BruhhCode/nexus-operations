@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile and role-based access control.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "task": {
+      "title": "Task",
+      "description": "A specific unit of work within a project.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["todo", "in-progress", "review", "done"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "projectId": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "status", "creatorId"]
+    },
+    "project": {
+      "title": "Project",
+      "description": "High-level project container.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "clientId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "on-hold", "completed", "cancelled"] },
+        "members": { "type": "array", "items": { "type": "string" } },
+        "driveUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "status"]
+    },
+    "client": {
+      "title": "Client",
+      "description": "Customer/Entity information.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "invoice": {
+      "title": "Invoice",
+      "description": "Financial records and billing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue"] },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "status", "clientId"]
+    },
+    "message": {
+      "title": "Message",
+      "description": "Real-time chat message.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "roomId": { "type": "string" }
+      },
+      "required": ["senderId", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "user", "description": "User profiles" },
+    "/tasks/{taskId}": { "schema": "task", "description": "Global tasks" },
+    "/projects/{projectId}": { "schema": "project", "description": "Global projects" },
+    "/clients/{clientId}": { "schema": "client", "description": "Customer records" },
+    "/invoices/{invoiceId}": { "schema": "invoice", "description": "Billing records" },
+    "/chat_rooms/{roomId}/messages/{messageId}": { "schema": "message", "description": "Real-time messages" }
+  }
+}
