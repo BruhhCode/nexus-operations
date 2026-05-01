@@ -43,18 +43,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               photoURL: user.photoURL || undefined,
               createdAt: new Date().toISOString(),
             };
-            await setDoc(profileRef, newProfile);
-            setProfile(newProfile);
+            try {
+              await setDoc(profileRef, newProfile);
+              setProfile(newProfile);
+            } catch (setDocError) {
+              console.error('Failed to create user profile:', setDocError);
+              // Still set the profile from the Google auth data so user can proceed
+              setProfile(newProfile);
+            }
           } else {
             // Listen for profile changes (roles etc)
             onSnapshot(profileRef, (doc) => {
               setProfile(doc.data() as UserProfile);
             }, (error) => {
-              handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+              console.error('Error listening to profile changes:', error);
+              // Still set available profile data
+              const data = profileSnap.data();
+              if (data) setProfile(data as UserProfile);
             });
           }
         } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+          console.error('Error fetching user profile:', error);
         }
       } else {
         setProfile(null);

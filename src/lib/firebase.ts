@@ -6,7 +6,13 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+googleProvider.setCustomParameters({
+  'prompt': 'consent'
+});
 
 export enum OperationType {
   CREATE = 'create',
@@ -60,8 +66,13 @@ async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+    // Connection test document might not exist, that's ok
+    if (error instanceof Error) {
+      if (error.message.includes('offline')) {
+        console.warn("Firebase connection warning: client appears to be offline.");
+      } else if (!error.message.includes('permission-denied')) {
+        console.warn("Firebase connection test:", error.message);
+      }
     }
   }
 }

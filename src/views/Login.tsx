@@ -7,15 +7,34 @@ import { Briefcase } from 'lucide-react';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleLogin = async () => {
     setLoading(true);
+    setError('');
     try {
-      await signInWithPopup(auth, googleProvider);
+      console.log('Starting Google Sign-In...');
+      const result = await signInWithPopup(auth, googleProvider);
+      console.log('Sign-in successful:', result.user.email);
       navigate('/');
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error?.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup was blocked. Please allow popups and try again.';
+      } else if (error?.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Login cancelled.';
+      } else if (error?.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Check your connection.';
+      } else if (error?.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Google Sign-In is not enabled. Contact administrator.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -59,6 +78,11 @@ export default function Login() {
                 )}
               </div>
             </button>
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
             <p className="text-[10px] opacity-40 font-bold text-slate-400 uppercase tracking-[0.2em]">Authorized Personnel Only</p>
           </div>
         </div>
