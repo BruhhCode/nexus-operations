@@ -100,10 +100,8 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // --- Chat ---
-    match /chat_rooms/{roomId}/messages/{messageId} {
+    // --- Presence ---
+    match /presence/{userId} {
       allow read: if isSignedIn();
-      allow create: if isMember() && incoming().text.size() <= 5000;
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
-  }
-}

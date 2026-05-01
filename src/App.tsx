@@ -9,6 +9,7 @@ import Projects from './views/Projects';
 import Finances from './views/Finances';
 import CalendarView from './views/CalendarView';
 import TeamChat from './views/TeamChat';
+import Team from './views/Team';
 import Login from './views/Login';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ function App() {
             <Route path="finances" element={<Finances />} />
             <Route path="calendar" element={<CalendarView />} />
             <Route path="chat" element={<TeamChat />} />
+            <Route path="team" element={<Team />} />
           </Route>
         </Routes>
       </BrowserRouter>

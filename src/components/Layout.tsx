@@ -23,6 +23,7 @@ export default function Layout() {
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/team', icon: Users, label: 'Team' },
     { to: '/projects', icon: Briefcase, label: 'Projects' },
     { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
     { to: '/clients', icon: Users, label: 'Clients' },
