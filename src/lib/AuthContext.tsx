@@ -29,28 +29,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        console.log('User authenticated:', {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL
-        });
-
-        // Set user as online
-        const presenceRef = doc(db, 'presence', user.uid);
         try {
+          console.log('User authenticated:', {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL
+          });
+
+          // Set user as online immediately
+          const presenceRef = doc(db, 'presence', user.uid);
+          
+          // Set presence to online with merge to avoid overwriting
           await setDoc(presenceRef, {
             isOnline: true,
-            lastSeen: serverTimestamp()
-          });
-          console.log('Presence set to online');
+            lastSeen: serverTimestamp(),
+            uid: user.uid
+          }, { merge: false });
+          console.log('✅ Presence successfully set to ONLINE for', user.uid);
 
-          // Set up disconnect handler to mark as offline
-          // Note: This is a simplified approach using page visibility
+          // Keep user online with periodic updates (every 30 seconds)
+          const presenceInterval = setInterval(async () => {
+            try {
+              if (!document.hidden) { // Only update if tab is visible
+                await updateDoc(presenceRef, {
+                  isOnline: true,
+                  lastSeen: serverTimestamp()
+                });
+                console.log('💚 Presence heartbeat - keeping user online');
+              }
+            } catch (error) {
+              console.error('Error updating presence heartbeat:', error);
+            }
+          }, 30000);
+
+          // Handle page visibility changes
           const handleVisibilityChange = async () => {
             try {
               const isOnline = !document.hidden;
-              console.log('Visibility changed, setting online status:', isOnline);
+              console.log('👁️ Visibility changed, setting presence to:', isOnline);
               await updateDoc(presenceRef, {
                 isOnline: isOnline,
                 lastSeen: serverTimestamp()
@@ -61,29 +78,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
 
           // Handle page unload
-          const handleBeforeUnload = async () => {
+          const handleBeforeUnload = () => {
             try {
-              console.log('Page unloading, setting offline');
-              await updateDoc(presenceRef, {
+              // Use sendBeacon for reliable offline update
+              console.log('🚪 Page unloading, marking offline');
+              navigator.sendBeacon('/api/offline', JSON.stringify({ uid: user.uid }));
+              // Also try to update directly (might complete before unload)
+              updateDoc(presenceRef, {
                 isOnline: false,
                 lastSeen: serverTimestamp()
-              });
+              }).catch(err => console.error('Error on unload:', err));
             } catch (error) {
-              console.error('Error updating presence on unload:', error);
+              console.error('Error on beforeunload:', error);
             }
           };
 
-          // Add a small delay before setting up listeners to avoid immediate offline
-          setTimeout(() => {
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            window.addEventListener('beforeunload', handleBeforeUnload);
-            console.log('Presence listeners set up');
-          }, 1000);
+          // Set up event listeners
+          document.addEventListener('visibilitychange', handleVisibilityChange);
+          window.addEventListener('beforeunload', handleBeforeUnload);
+          console.log('✅ Presence event listeners attached');
 
-          // Store cleanup functions
+          // Cleanup function
           const cleanup = () => {
+            clearInterval(presenceInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
+            console.log('🧹 Presence listeners cleaned up');
           };
 
           // Get or create profile
@@ -154,9 +174,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(fallbackProfile);
             console.log('Using fallback profile:', fallbackProfile);
           }
-
         } catch (error) {
-          console.error('Error setting up presence:', error);
+          console.error('Error in auth setup:', error);
+          // Still set a basic profile so user can proceed
+          setProfile({
+            uid: user.uid,
+            email: user.email || '',
+            displayName: user.displayName || user.email?.split('@')[0] || 'User',
+            role: 'member',
+            photoURL: user.photoURL || undefined,
+            createdAt: new Date().toISOString(),
+          });
         }
       } else {
         setProfile(null);

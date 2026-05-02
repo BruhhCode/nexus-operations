@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { Circle, Users, Shield, User, Wifi, WifiOff } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -40,23 +40,30 @@ export default function Team() {
     // Track presence for each team member
     const presenceRefs: any[] = [];
 
+    console.log('Setting up presence tracking for', teamMembers.length, 'members');
+
     teamMembers.forEach(member => {
       const presenceRef = doc(db, 'presence', member.uid);
-      const unsubscribe = onSnapshot(presenceRef, (doc) => {
-        if (doc.exists()) {
-          const data = doc.data();
-          console.log(`Presence update for ${member.displayName}:`, data);
+      console.log(`Listening to presence for ${member.displayName} (${member.uid})`);
+      
+      const unsubscribe = onSnapshot(presenceRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          console.log(`✅ Presence data for ${member.displayName}:`, {
+            isOnline: data.isOnline,
+            lastSeen: data.lastSeen
+          });
           setPresence(prev => ({
             ...prev,
             [member.uid]: {
               uid: member.uid,
-              isOnline: data.isOnline || false,
+              isOnline: data.isOnline === true, // Explicitly check for true
               lastSeen: data.lastSeen?.toDate() || new Date()
             }
           }));
         } else {
-          // No presence document exists, assume offline
-          console.log(`No presence data for ${member.displayName}, setting offline`);
+          // No presence document exists
+          console.log(`⚠️ No presence document for ${member.displayName}, assuming offline`);
           setPresence(prev => ({
             ...prev,
             [member.uid]: {
@@ -66,8 +73,8 @@ export default function Team() {
             }
           }));
         }
-      }, (error) => {
-        console.error('Error tracking presence for', member.displayName, error);
+      }, (error: any) => {
+        console.error(`❌ Error listening to presence for ${member.displayName}:`, error.code, error.message);
         // On error, assume offline
         setPresence(prev => ({
           ...prev,
@@ -83,6 +90,7 @@ export default function Team() {
     });
 
     return () => {
+      console.log('Cleaning up presence listeners');
       presenceRefs.forEach(unsubscribe => unsubscribe());
     };
   }, [teamMembers]);
@@ -118,9 +126,29 @@ export default function Team() {
         isOnline: isOnline,
         lastSeen: serverTimestamp()
       });
-      console.log(`Manually set presence to ${isOnline ? 'online' : 'offline'}`);
+      console.log(`Manually set presence to ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
     } catch (error) {
       console.error('Error updating presence:', error);
+    }
+  };
+
+  const verifyPresenceInFirestore = async () => {
+    if (!user) return;
+    
+    try {
+      const presenceRef = doc(db, 'presence', user.uid);
+      const presenceSnap = await getDoc(presenceRef);
+      
+      if (presenceSnap.exists()) {
+        console.log('🔍 Presence doc exists in Firestore:', presenceSnap.data());
+        alert(`Your Firestore presence:\n${JSON.stringify(presenceSnap.data(), null, 2)}`);
+      } else {
+        console.log('🔍 Presence doc does NOT exist in Firestore');
+        alert('Your presence document does not exist in Firestore!');
+      }
+    } catch (error) {
+      console.error('Error verifying presence:', error);
+      alert(`Error: ${error}`);
     }
   };
 
@@ -139,40 +167,72 @@ export default function Team() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Team Directory</h1>
-          <p className="text-sm text-slate-500 mt-1">Monitor team member status and availability.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {/* Debug: Current user status */}
-          {currentUserPresence && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-sm">
-              <Circle className={cn(
-                "w-2 h-2",
-                currentUserPresence.isOnline ? "fill-emerald-500 text-emerald-500" : "fill-slate-300 text-slate-300"
-              )} />
-              <span className="font-medium">You: {currentUserPresence.isOnline ? 'Online' : 'Offline'}</span>
-              <div className="flex gap-1 ml-2">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+        <div className="lg:col-span-1 card-sleek p-4 bg-blue-50 border-l-4 border-blue-500">
+          <h3 className="text-xs font-bold text-blue-900 uppercase mb-3">DEBUG: Your Status</h3>
+          {user && (
+            <div className="space-y-2 text-xs">
+              <div className="text-blue-800">
+                <strong>UID:</strong> {user.uid.substring(0, 8)}...
+              </div>
+              <div className="text-blue-800">
+                <strong>Name:</strong> {profile?.displayName || 'Loading...'}
+              </div>
+              <div className="text-blue-800">
+                <strong>Your Presence:</strong>
+                {currentUserPresence ? (
+                  <span className={currentUserPresence.isOnline ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}>
+                    {' '}{currentUserPresence.isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                  </span>
+                ) : (
+                  <span className="text-gray-600"> ⏳ Loading...</span>
+                )}
+              </div>
+              {currentUserPresence && (
+                <div className="text-blue-800 text-[10px]">
+                  <strong>Last Updated:</strong> {formatLastSeen(currentUserPresence.lastSeen)}
+                </div>
+              )}
+              <div className="mt-3 pt-3 border-t border-blue-200 space-y-1">
                 <button 
                   onClick={() => updateMyPresence(true)}
-                  className="px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600"
+                  className="w-full px-2 py-1 bg-emerald-500 text-white text-[10px] font-bold rounded hover:bg-emerald-600"
                 >
-                  Online
+                  SET ONLINE
                 </button>
                 <button 
                   onClick={() => updateMyPresence(false)}
-                  className="px-2 py-1 bg-slate-500 text-white text-xs rounded hover:bg-slate-600"
+                  className="w-full px-2 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:bg-red-600"
                 >
-                  Offline
+                  SET OFFLINE
+                </button>
+                <button 
+                  onClick={verifyPresenceInFirestore}
+                  className="w-full px-2 py-1 bg-blue-500 text-white text-[10px] font-bold rounded hover:bg-blue-600"
+                >
+                  🔍 VERIFY IN DB
                 </button>
               </div>
             </div>
           )}
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Users className="w-4 h-4" />
-            <span>{teamMembers.length} members</span>
-          </div>
+        </div>
+
+        <div className="lg:col-span-3 card-sleek p-4 bg-yellow-50 border-l-4 border-yellow-500">
+          <h3 className="text-xs font-bold text-yellow-900 uppercase mb-2">ℹ️ Instructions</h3>
+          <ul className="text-xs text-yellow-800 space-y-1 list-disc list-inside">
+            <li>Your status updates automatically when you log in</li>
+            <li>Status changes when you tab away (offline) or come back (online)</li>
+            <li>Use manual buttons if automatic tracking doesn't work</li>
+            <li>Check browser console (F12) for detailed debug logs</li>
+            <li>Status refreshes every 30 seconds to stay online</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">All Team Members</h2>
+          <p className="text-xs text-slate-500">Total: {teamMembers.length} | Online: {Object.values(presence).filter(p => p.isOnline).length}</p>
         </div>
       </div>
 
