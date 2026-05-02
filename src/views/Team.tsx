@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile } from '../types';
-import { Circle, Users, Shield, User } from 'lucide-react';
+import { Circle, Users, Shield, User, Wifi, WifiOff } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/AuthContext';
 
 interface UserPresence {
   uid: string;
@@ -12,8 +13,12 @@ interface UserPresence {
 }
 
 export default function Team() {
+  const { user, profile } = useAuth();
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
   const [presence, setPresence] = useState<Record<string, UserPresence>>({});
+
+  // Debug: Show current user's presence status
+  const currentUserPresence = user ? presence[user.uid] : null;
 
   useEffect(() => {
     // Fetch all team members
@@ -40,6 +45,7 @@ export default function Team() {
       const unsubscribe = onSnapshot(presenceRef, (doc) => {
         if (doc.exists()) {
           const data = doc.data();
+          console.log(`Presence update for ${member.displayName}:`, data);
           setPresence(prev => ({
             ...prev,
             [member.uid]: {
@@ -49,17 +55,28 @@ export default function Team() {
             }
           }));
         } else {
+          // No presence document exists, assume offline
+          console.log(`No presence data for ${member.displayName}, setting offline`);
           setPresence(prev => ({
             ...prev,
             [member.uid]: {
               uid: member.uid,
               isOnline: false,
-              lastSeen: new Date()
+              lastSeen: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24 hours ago
             }
           }));
         }
       }, (error) => {
-        console.error('Error tracking presence:', error);
+        console.error('Error tracking presence for', member.displayName, error);
+        // On error, assume offline
+        setPresence(prev => ({
+          ...prev,
+          [member.uid]: {
+            uid: member.uid,
+            isOnline: false,
+            lastSeen: new Date()
+          }
+        }));
       });
 
       presenceRefs.push(unsubscribe);
@@ -92,6 +109,21 @@ export default function Team() {
     }
   };
 
+  const updateMyPresence = async (isOnline: boolean) => {
+    if (!user) return;
+    
+    try {
+      const presenceRef = doc(db, 'presence', user.uid);
+      await setDoc(presenceRef, {
+        isOnline: isOnline,
+        lastSeen: serverTimestamp()
+      });
+      console.log(`Manually set presence to ${isOnline ? 'online' : 'offline'}`);
+    } catch (error) {
+      console.error('Error updating presence:', error);
+    }
+  };
+
   const formatLastSeen = (date: Date) => {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -112,9 +144,35 @@ export default function Team() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Team Directory</h1>
           <p className="text-sm text-slate-500 mt-1">Monitor team member status and availability.</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <Users className="w-4 h-4" />
-          <span>{teamMembers.length} members</span>
+        <div className="flex items-center gap-4">
+          {/* Debug: Current user status */}
+          {currentUserPresence && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-sm">
+              <Circle className={cn(
+                "w-2 h-2",
+                currentUserPresence.isOnline ? "fill-emerald-500 text-emerald-500" : "fill-slate-300 text-slate-300"
+              )} />
+              <span className="font-medium">You: {currentUserPresence.isOnline ? 'Online' : 'Offline'}</span>
+              <div className="flex gap-1 ml-2">
+                <button 
+                  onClick={() => updateMyPresence(true)}
+                  className="px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600"
+                >
+                  Online
+                </button>
+                <button 
+                  onClick={() => updateMyPresence(false)}
+                  className="px-2 py-1 bg-slate-500 text-white text-xs rounded hover:bg-slate-600"
+                >
+                  Offline
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Users className="w-4 h-4" />
+            <span>{teamMembers.length} members</span>
+          </div>
         </div>
       </div>
 

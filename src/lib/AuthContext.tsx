@@ -49,17 +49,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Note: This is a simplified approach using page visibility
           const handleVisibilityChange = async () => {
             try {
-              if (document.hidden) {
-                await updateDoc(presenceRef, {
-                  isOnline: false,
-                  lastSeen: serverTimestamp()
-                });
-              } else {
-                await updateDoc(presenceRef, {
-                  isOnline: true,
-                  lastSeen: serverTimestamp()
-                });
-              }
+              const isOnline = !document.hidden;
+              console.log('Visibility changed, setting online status:', isOnline);
+              await updateDoc(presenceRef, {
+                isOnline: isOnline,
+                lastSeen: serverTimestamp()
+              });
             } catch (error) {
               console.error('Error updating presence on visibility change:', error);
             }
@@ -68,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Handle page unload
           const handleBeforeUnload = async () => {
             try {
+              console.log('Page unloading, setting offline');
               await updateDoc(presenceRef, {
                 isOnline: false,
                 lastSeen: serverTimestamp()
@@ -77,8 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           };
 
-          document.addEventListener('visibilitychange', handleVisibilityChange);
-          window.addEventListener('beforeunload', handleBeforeUnload);
+          // Add a small delay before setting up listeners to avoid immediate offline
+          setTimeout(() => {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            console.log('Presence listeners set up');
+          }, 1000);
 
           // Store cleanup functions
           const cleanup = () => {
