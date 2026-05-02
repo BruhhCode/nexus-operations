@@ -81,10 +81,14 @@ export default function Layout() {
           
           <div className="flex items-center gap-3 px-3 py-3 mb-2">
             <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
-              {profile?.displayName?.slice(0, 2).toUpperCase() || '??'}
+              {profile?.displayName?.slice(0, 2).toUpperCase() || 
+               profile?.email?.slice(0, 2).toUpperCase() || 
+               'U'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-semibold text-slate-900 truncate leading-none mb-1">{profile?.displayName}</p>
+              <p className="text-xs font-semibold text-slate-900 truncate leading-none mb-1">
+                {profile?.displayName || profile?.email?.split('@')[0] || 'User'}
+              </p>
               <p className="text-[10px] text-slate-400 font-medium uppercase leading-none">{profile?.role}</p>
             </div>
           </div>

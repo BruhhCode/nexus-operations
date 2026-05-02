@@ -29,6 +29,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
+        console.log('User authenticated:', {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL
+        });
+
         // Set user as online
         const presenceRef = doc(db, 'presence', user.uid);
         try {
@@ -36,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isOnline: true,
             lastSeen: serverTimestamp()
           });
+          console.log('Presence set to online');
 
           // Set up disconnect handler to mark as offline
           // Note: This is a simplified approach using page visibility
@@ -84,42 +92,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const profileSnap = await getDoc(profileRef);
 
             if (!profileSnap.exists()) {
+              // Extract name from email if displayName is not available
+              const getDisplayName = () => {
+                if (user.displayName && user.displayName.trim()) {
+                  return user.displayName.trim();
+                }
+                // Fallback: use email prefix as display name
+                if (user.email) {
+                  return user.email.split('@')[0];
+                }
+                return 'User';
+              };
+
               const newProfile: UserProfile = {
                 uid: user.uid,
                 email: user.email || '',
-                displayName: user.displayName || 'Anonymous',
+                displayName: getDisplayName(),
                 role: 'member', // Default role
                 photoURL: user.photoURL || undefined,
                 createdAt: new Date().toISOString(),
               };
+
+              console.log('Creating new profile:', newProfile);
+
               try {
                 await setDoc(profileRef, newProfile);
                 setProfile(newProfile);
+                console.log('Profile created successfully');
               } catch (setDocError) {
-                console.error('Failed to create user profile:', setDocError);
-                // Still set the profile from the Google auth data so user can proceed
+                console.error('Failed to create user profile in Firestore:', setDocError);
+                // Still set the profile locally so user can proceed
                 setProfile(newProfile);
+                console.log('Using local profile fallback');
               }
             } else {
+              const existingProfile = profileSnap.data() as UserProfile;
+              console.log('Using existing profile:', existingProfile);
+              setProfile(existingProfile);
+
               // Listen for profile changes (roles etc)
               onSnapshot(profileRef, (doc) => {
-                setProfile(doc.data() as UserProfile);
+                const updatedProfile = doc.data() as UserProfile;
+                console.log('Profile updated:', updatedProfile);
+                setProfile(updatedProfile);
               }, (error) => {
                 console.error('Error listening to profile changes:', error);
-                // Still set available profile data
-                const data = profileSnap.data();
-                if (data) setProfile(data as UserProfile);
+                // Keep the existing profile data
               });
             }
           } catch (error) {
             console.error('Error fetching user profile:', error);
+            // Create a basic profile from auth data as last resort
+            const fallbackProfile: UserProfile = {
+              uid: user.uid,
+              email: user.email || '',
+              displayName: user.displayName || user.email?.split('@')[0] || 'User',
+              role: 'member',
+              photoURL: user.photoURL || undefined,
+              createdAt: new Date().toISOString(),
+            };
+            setProfile(fallbackProfile);
+            console.log('Using fallback profile:', fallbackProfile);
           }
 
-          // Return cleanup function that includes presence cleanup
-          return () => {
-            cleanup();
-            handleBeforeUnload();
-          };
         } catch (error) {
           console.error('Error setting up presence:', error);
         }
